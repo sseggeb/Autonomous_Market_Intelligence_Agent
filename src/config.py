@@ -34,7 +34,7 @@ ML_CONFIG = {
     "num_layers": 2,        # Stacked LSTM layers
     "learning_rate": 0.001,
     "batch_size": 32,
-    "epochs": 20,
+    "epochs": 10,
     "window_size": 10,      # Lookback period (how many days to look behind)
     "model_path": MODEL_DIR / "price_predictor.pth"
 }

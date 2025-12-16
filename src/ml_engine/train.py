@@ -30,8 +30,6 @@ def train_model():
 
     # We define these explicitly so MLflow can track them
     params = {
-        "epochs": 10,
-        "batch_size": 32,
         "optimizer": "Adam"
     }
 
@@ -40,7 +38,7 @@ def train_model():
     X = torch.randn(1000, 10, 1)
     y = torch.randn(1000, 1)
     dataset = TensorDataset(X, y)
-    dataloader = DataLoader(dataset, batch_size=params["batch_size"])
+    dataloader = DataLoader(dataset, batch_size=ML_CONFIG["batch_size"])
 
     # --- MODEL SETUP ---
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -60,7 +58,7 @@ def train_model():
 
         # B. Training Loop
         model.train()
-        for epoch in range(params["epochs"]):
+        for epoch in range(ML_CONFIG["epochs"]):
             epoch_loss = 0.0
             for batch_X, batch_y in dataloader:
                 batch_X, batch_y = batch_X.to(device), batch_y.to(device)
@@ -79,7 +77,7 @@ def train_model():
             # This draws the line chart in the MLflow UI
             mlflow.log_metric("mse_loss", avg_loss, step=epoch)
 
-            print(f"Epoch [{epoch + 1}/{params['epochs']}], Loss: {avg_loss:.4f}")
+            print(f"Epoch [{epoch + 1}/{ML_CONFIG['epochs']}], Loss: {avg_loss:.4f}")
 
         # D. Log the Model Artifact
         # Saves the actual file so you can load it later in LangGraph
