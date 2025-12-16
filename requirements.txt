@@ -1,0 +1,7 @@
+python-dotenv~=1.2.1
+torch~=2.7.1
+mlflow-skinny~=3.7.0
+langchain-community~=0.4.1
+langchain-text-splitters~=1.1.0
+langchain-openai~=0.3.27
+langgraph~=1.0.5
