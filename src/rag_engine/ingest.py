@@ -4,10 +4,11 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
+from src.config import CHROMA_DB_PATH, RAW_DATA_DIR
 
 # --- CONFIGURATION ---
-DATA_PATH = "data/raw/financial_report.pdf"
-DB_PATH = "data/processed/chroma_db"
+DATA_PATH = RAW_DATA_DIR / "financial_report.pdf"
+DB_PATH = CHROMA_DB_PATH
 
 
 def ingest_documents():

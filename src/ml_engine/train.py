@@ -4,6 +4,7 @@ import torch.optim as optim
 import mlflow
 import mlflow.pytorch
 from torch.utils.data import DataLoader, TensorDataset
+from src.config import ML_CONFIG, MLFLOW_TRACKING_URI
 
 
 # 1. Define a dummy LSTM Architecture (for demonstration)
@@ -22,11 +23,14 @@ class MarketLSTM(nn.Module):
 
 def train_model():
     # --- CONFIGURATION (Hyperparameters) ---
+    hidden_size = ML_CONFIG["hidden_size"]
+    lr = ML_CONFIG["learning_rate"]
+
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+
     # We define these explicitly so MLflow can track them
     params = {
         "epochs": 10,
-        "learning_rate": 0.01,
-        "hidden_size": 64,
         "batch_size": 32,
         "optimizer": "Adam"
     }
@@ -40,9 +44,9 @@ def train_model():
 
     # --- MODEL SETUP ---
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = MarketLSTM(hidden_size=params["hidden_size"]).to(device)
+    model = MarketLSTM(hidden_size=hidden_size).to(device)
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"])
+    optimizer = optim.Adam(model.parameters(), lr=lr)
 
     print(f"Starting training on {device}...")
 
