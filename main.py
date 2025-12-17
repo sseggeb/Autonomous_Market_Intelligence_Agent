@@ -57,9 +57,8 @@ def main():
         initial_state = {
             "ticker": user_ticker,
             "price_history": [],
-            "news_documents": [],
-            "forecast_value": 0.0,
-            "forecast_confidence": 0.0,
+            "news_documents": "",
+            "forecast_report": "",
             "final_report": ""
         }
 
@@ -72,12 +71,15 @@ def main():
             print("\n" + "=" * 40)
             print("       💰 FINAL STRATEGIC REPORT       ")
             print("=" * 40)
-            print(result["final_report"])
-            print("\n[Debug Data]")
-            print(f"Forecast: ${result['forecast_value']} (Confidence: {result['forecast_confidence']:.2f})")
+            print(result.get("final_report", "No report generated."))
+
+            # We now print 'forecast_report' because tools.py returns a string message, not a float
+            print(f"ML Output: {result.get('forecast_report', 'N/A')}")
 
         except Exception as e:
             print(f"❌ An error occurred: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 if __name__ == "__main__":
