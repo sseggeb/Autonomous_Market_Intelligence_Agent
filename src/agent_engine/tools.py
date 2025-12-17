@@ -1,5 +1,6 @@
 import torch
 import yfinance as yf
+# import morningstar_data as md
 from langchain.tools import tool
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
@@ -36,7 +37,7 @@ def get_current_stock_price(ticker: str) -> float:
     try:
         stock = yf.Ticker(ticker)
         # Fast retrieval of the last day's data
-        data = stock.history(period="1d")
+        data = stock.history(period="30d")
         if data.empty:
             return 0.0
         return round(float(data["Close"].iloc[0]), 2)
@@ -57,7 +58,7 @@ def retrieve_financial_context(query: str) -> str:
     results = vector_db.similarity_search(query, k=3)
 
     # 2. Format the output for the LLM
-    # We combine the chunks into a single string
+    # Combine the chunks into a single string
     context_text = "\n---\n".join([doc.page_content for doc in results])
     return context_text
 
@@ -66,7 +67,7 @@ def retrieve_financial_context(query: str) -> str:
 def predict_future_price(recent_prices: list[float]) -> dict:
     """
     Uses the internal PyTorch LSTM model to forecast the price for the next time step.
-    Input should be a list of the last 10 closing prices.
+    Input should be a list of the last 30 closing prices.
     Returns a dictionary with the predicted price and model confidence.
     """
     print(f"[TOOL] Running PyTorch Inference on {len(recent_prices)} data points...")
@@ -82,7 +83,7 @@ def predict_future_price(recent_prices: list[float]) -> dict:
     # predicted_val = last_price * 1.015  # +1.5%
 
     return {
-        "predicted_price": round(predicted_val, 2),
+        "predicted_price": round(prediction, 2),
         "confidence_score": 0.87,  # 87% confident
         "model_used": "LSTM_v1"
     }

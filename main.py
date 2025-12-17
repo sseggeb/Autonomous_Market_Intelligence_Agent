@@ -23,7 +23,6 @@ def print_banner():
 def save_graph_image():
     """
     Optional: Visualizes the agent's logic flow as a PNG image.
-    This is great for documentation or showing the interviewer.
     """
     try:
         graph_image = app.get_graph().draw_mermaid_png()

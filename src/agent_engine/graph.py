@@ -15,7 +15,7 @@ class AgentState(TypedDict):
 
 def fetch_market_data(state: AgentState):
     print(f"--- FETCHING DATA FOR {state['ticker']} ---")
-    # Logic to pull API data (e.g., yfinance, morningstar)
+    # Logic to pull API data (e.g., yfinance, morningstar_data)
     state['price_history'] = api_call(...)
     return state
 
