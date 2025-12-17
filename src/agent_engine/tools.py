@@ -3,12 +3,13 @@ import yfinance as yf
 from langchain.tools import tool
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
+from src.config import CHROMA_DB_PATH, EMBEDDING_MODEL_NAME, ML_CONFIG
 
 # --- CONFIGURATION & CACHING ---
 # We load these globally so we don't re-initialize them on every function call.
 # This demonstrates performance awareness.
-DB_PATH = "data/processed/chroma_db"
-EMBEDDING_MODEL = OpenAIEmbeddings(model="text-embedding-3-small")
+DB_PATH = CHROMA_DB_PATH
+EMBEDDING_MODEL = OpenAIEmbeddings(model=EMBEDDING_MODEL_NAME)
 
 # Connect to the existing Vector DB
 vector_db = Chroma(persist_directory=DB_PATH, embedding_function=EMBEDDING_MODEL)
@@ -60,14 +61,14 @@ def predict_future_price(recent_prices: list[float]) -> dict:
     print(f"[TOOL] Running PyTorch Inference on {len(recent_prices)} data points...")
 
     # In a real scenario, you would load the model here:
-    # model = torch.load("models/price_predictor.pth")
-    # tensor_in = torch.tensor([recent_prices]).to(device)
-    # prediction = model(tensor_in)
+    model = torch.load(ML_CONFIG["model_path"])
+    tensor_in = torch.tensor([recent_prices]).to(device)
+    prediction = model(tensor_in)
 
     # SIMULATION (For the portfolio demo logic):
     # Let's pretend the model predicts a slight increase based on momentum
-    last_price = recent_prices[-1]
-    predicted_val = last_price * 1.015  # +1.5%
+    # last_price = recent_prices[-1]
+    # predicted_val = last_price * 1.015  # +1.5%
 
     return {
         "predicted_price": round(predicted_val, 2),
