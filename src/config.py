@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from langchain_huggingface import HuggingFaceEmbeddings
 
 # 1. Load Environment Variables
 # This automatically looks for a .env file in the root directory
@@ -20,8 +21,8 @@ for path in [RAW_DATA_DIR, PROCESSED_DATA_DIR, MODEL_DIR, LOGS_DIR]:
     path.mkdir(parents=True, exist_ok=True)
 
 # 3. Vector Database Settings (RAG)
-CHROMA_DB_PATH = PROCESSED_DATA_DIR / "chroma_db"
-EMBEDDING_MODEL_NAME = "text-embedding-3-small"
+CHROMA_DB_PATH = PROCESSED_DATA_DIR / "chroma_db_local"
+EMBEDDING_MODEL = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 

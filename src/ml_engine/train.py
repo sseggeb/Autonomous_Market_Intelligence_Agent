@@ -84,7 +84,7 @@ def train_model():
         input_example = torch.randn(1, 10, 1).float().numpy()
         mlflow.pytorch.log_model(
             model,
-            "model",
+            name="model",
             input_example=input_example
         )
         print("Training complete. Model logged to MLflow.")

@@ -1,90 +1,139 @@
-from typing import TypedDict, Annotated, List, Union
+from typing import TypedDict, List
+import yfinance as yf
 from langgraph.graph import StateGraph, END
 
-# 1. Define the State
-# This acts as the memory that gets passed between nodes
+# Import the tools/logic we built earlier
+# use the 'predict_future_price' tool logic inside the graph
+from src.agent_engine.tools import retrieve_financial_context, predict_future_price
+from src.config import ML_CONFIG
+
+
+# --- 1. DEFINE STATE ---
 class AgentState(TypedDict):
     ticker: str
-    price_history: List[float]
-    news_documents: List[str]
-    forecast_value: float
-    forecast_confidence: float
-    final_report: str
+    price_history: List[float]  # The last N days of closing prices
+    news_documents: str  # Summarized news context
+    forecast_report: str  # The ML prediction text
+    final_report: str  # The final output to the user
 
-# 2. Define the Nodes (The actual work)
+
+# --- 2. DEFINE NODES ---
 
 def fetch_market_data(state: AgentState):
-    print(f"--- FETCHING DATA FOR {state['ticker']} ---")
-    # Logic to pull API data (e.g., yfinance, morningstar_data)
-    state['price_history'] = api_call(...)
-    return state
+    """
+    Node 1: Perception.
+    Fetches the last N days of stock data to feed the ML model.
+    """
+    ticker = state["ticker"]
+    print(f"--- [GRAPH] FETCHING HISTORY FOR {ticker} ---")
+
+    try:
+        stock = yf.Ticker(ticker)
+        # We need slightly more than 'window_size' to be safe, e.g., 1mo
+        # The ML model expects a sequence (defined in config, usually 10 days)
+        hist = stock.history(period="1mo")
+
+        if hist.empty:
+            print(f"⚠️ Warning: No data found for {ticker}")
+            return {"price_history": []}
+
+        # Get the last 'window_size' closing prices (e.g., last 10)
+        # We assume ML_CONFIG['window_size'] is 10
+        window = ML_CONFIG.get("window_size", 10)
+        recent_closes = hist["Close"].tail(window).tolist()
+
+        return {"price_history": recent_closes}
+
+    except Exception as e:
+        print(f"Error fetching market data: {e}")
+        return {"price_history": []}
 
 
-def run_pytorch_forecast(state: AgentState):
-    print("--- RUNNING DEEP LEARNING MODEL ---")
-    # Load your PyTorch model from src/ml_engine/
-    model = load_model("models/price_predictor.pth")
-    prediction = model(state['price_history'])
+def run_prediction_node(state: AgentState):
+    """
+    Node 2: Prediction.
+    Runs the ML model (or simulation) on the fetched data.
+    """
+    print("--- [GRAPH] RUNNING PREDICTION MODEL ---")
+    history = state["price_history"]
 
-    # Simulate a result
-    # state['forecast_value'] = 150.00
-    # state['forecast_confidence'] = 0.85  # 85% confident
-    return state
+    if not history:
+        return {"forecast_report": "Error: Insufficient data for prediction."}
 
+    # We reuse the logic from our tools.py
+    # In a real app, you'd pass the list[float] directly to the model.
+    # Here, we pass it to our tool wrapper which returns a string string.
+    result_text = predict_future_price.invoke(str(history))
 
-def consult_rag_system(state: AgentState):
-    print("--- RETRIEVING CONTEXT VIA RAG ---")
-    # Logic to query Vector DB (Chroma/Pinecone)
-    docs = vector_store.similarity_search(state['ticker'])
-    # state['news_documents'] = ["SEC Filing: Revenue up 10%...", "News: CEO steps down..."]
-    return state
-
-
-def generate_report(state: AgentState):
-    print("--- GENERATING FINAL REPORT ---")
-    # Use LangChain/OpenAI here
-    prompt = f"The LSTM model predicts {state['forecast_value']}. Context: {state['news_documents']}."
-    response = llm.invoke(prompt)
-    state['final_report'] = "Based on the LSTM model and recent CEO news, the outlook is..."
-    return state
+    return {"forecast_report": result_text}
 
 
-# 3. Define the Edges (The Logic/Routing)
-def confidence_router(state: AgentState):
-    # If the ML model is unsure, force the agent to read the news first
-    if state['forecast_confidence'] < 0.90:
-        return "consult_rag"
-    else:
-        return "generate_report"
+def research_news_node(state: AgentState):
+    """
+    Node 3: Contextualization.
+    If the user asks for analysis, we fetch news/RAG context.
+    """
+    print("--- [GRAPH] SEARCHING NEWS (RAG) ---")
+    ticker = state["ticker"]
+
+    # Search for the ticker name in the vector DB
+    # You might want to expand this query (e.g., "Apple revenue risks")
+    context = retrieve_financial_context.invoke(ticker)
+
+    return {"news_documents": context}
 
 
-# 4. Build the Graph
+def generate_report_node(state: AgentState):
+    """
+    Node 4: Synthesis.
+    Combines ML stats + RAG news into the final answer.
+    """
+    print("--- [GRAPH] GENERATING FINAL REPORT ---")
+
+    ticker = state["ticker"]
+    prediction = state["forecast_report"]
+    news = state["news_documents"]
+
+    # Simple template for the final output
+    report = f"""
+    ANALYSIS REPORT FOR: {ticker}
+    --------------------------------------
+    1. MARKET FORECAST (Quantitative):
+    {prediction}
+
+    2. RELEVANT NEWS/CONTEXT (Qualitative):
+    {news[:500]}... (truncated for brevity)
+    --------------------------------------
+    """
+    return {"final_report": report}
+
+
+# --- 3. BUILD GRAPH ---
+
 workflow = StateGraph(AgentState)
 
-# Add nodes
+# Add Nodes
 workflow.add_node("fetch_data", fetch_market_data)
-workflow.add_node("predict_price", run_pytorch_forecast)
-workflow.add_node("research_news", consult_rag_system)
-workflow.add_node("write_report", generate_report)
+workflow.add_node("predict", run_prediction_node)
+workflow.add_node("research", research_news_node)
+workflow.add_node("report", generate_report_node)
 
-# Set entry point
+# Set Entry Point
 workflow.set_entry_point("fetch_data")
 
-# Add edges
-workflow.add_edge("fetch_data", "predict_price")
+# Define Edges (The Flow)
+# 1. Start -> Fetch Data
+# 2. Fetch Data -> Predict Price
+workflow.add_edge("fetch_data", "predict")
 
-# Conditional edge: After prediction, decide whether to Research or Write Report
-workflow.add_conditional_edges(
-    "predict_price",
-    confidence_router,
-    {
-        "consult_rag": "research_news",
-        "generate_report": "write_report"
-    }
-)
+# 3. Predict Price -> Research News
+# (In a complex agent, you could add a conditional edge here:
+#  "If confidence is low, do more research")
+workflow.add_edge("predict", "research")
 
-workflow.add_edge("research_news", "write_report")
-workflow.add_edge("write_report", END)
+# 4. Research -> Report -> End
+workflow.add_edge("research", "report")
+workflow.add_edge("report", END)
 
-# 5. Compile
+# Compile
 app = workflow.compile()

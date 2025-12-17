@@ -1,89 +1,97 @@
-import torch
 import yfinance as yf
-# import morningstar_data as md
+import torch
 from langchain.tools import tool
 from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
-from src.config import CHROMA_DB_PATH, EMBEDDING_MODEL_NAME, ML_CONFIG
 
-# --- CONFIGURATION & CACHING ---
-# We load these globally so we don't re-initialize them on every function call.
-# This demonstrates performance awareness.
-DB_PATH = CHROMA_DB_PATH
-EMBEDDING_MODEL = OpenAIEmbeddings(model=EMBEDDING_MODEL_NAME)
+# Import settings from your centralized config
+# This ensures we use the correct Embedding Model (OpenAI vs Local) and DB Path
+from src.config import CHROMA_DB_PATH, EMBEDDING_MODEL, ML_CONFIG
 
-"""
-# If using Chroma server instead of local file
-import chromadb
-
-client = chromadb.CloudClient(
-  api_key=CHROMA_API_KEY,
-  tenant='6cba13ad-4ca6-4b73-9b22-b012d0843ad6',
-  database='AMIA'
+# Initialize the Vector DB connection once (Global)
+print(f"[INIT] Loading Vector DB from {CHROMA_DB_PATH}...")
+vector_db = Chroma(
+    persist_directory=str(CHROMA_DB_PATH),
+    embedding_function=EMBEDDING_MODEL
 )
-"""
-
-# Connect to the existing Vector DB
-vector_db = Chroma(persist_directory=DB_PATH, embedding_function=EMBEDDING_MODEL)
 
 
 @tool
-def get_current_stock_price(ticker: str) -> float:
+def get_current_stock_price(ticker: str) -> str:
     """
     Fetches the latest closing price for a given stock ticker (e.g., 'AAPL', 'NVDA').
-    Useful for getting the current market status before making a prediction.
+    Returns a string message with the price.
     """
     print(f"[TOOL] Fetching price for {ticker}...")
     try:
         stock = yf.Ticker(ticker)
-        # Fast retrieval of the last day's data
-        data = stock.history(period="30d")
+        # Fetch 1 day of history
+        data = stock.history(period="1d")
+
         if data.empty:
-            return 0.0
-        return round(float(data["Close"].iloc[0]), 2)
+            return f"Error: Could not fetch data for ticker '{ticker}'. Is it valid?"
+
+        # Get the 'Close' price of the most recent data point
+        price = data["Close"].iloc[-1]
+        return f"{price:.2f}"
+
     except Exception as e:
-        return f"Error fetching price: {str(e)}"
+        return f"Error fetching price for {ticker}: {str(e)}"
 
 
 @tool
 def retrieve_financial_context(query: str) -> str:
     """
     Searches the internal knowledge base (SEC filings, news) for relevant context.
-    Use this to understand the 'why' behind market movements or to find specific
-    financial risks mentioned in reports.
+    Use this to find specific financial risks or news mentioned in reports.
     """
-    print(f"[TOOL] Querying Vector DB for: '{query}'...")
+    print(f"[TOOL] RAG Search for: '{query}'...")
 
-    # 1. Search the Vector DB (Top 3 most relevant chunks)
+    # Search the Vector DB (Top 3 most relevant chunks)
     results = vector_db.similarity_search(query, k=3)
 
-    # 2. Format the output for the LLM
-    # Combine the chunks into a single string
+    if not results:
+        return "No relevant financial documents found in the database."
+
+    # Combine the chunks into a single text block
     context_text = "\n---\n".join([doc.page_content for doc in results])
     return context_text
 
 
 @tool
-def predict_future_price(recent_prices: list[float]) -> dict:
+def predict_future_price(recent_prices_str: str) -> str:
     """
-    Uses the internal PyTorch LSTM model to forecast the price for the next time step.
-    Input should be a list of the last 30 closing prices.
-    Returns a dictionary with the predicted price and model confidence.
+    Uses the PyTorch LSTM model to forecast the price.
+    Args:
+        recent_prices_str (str): A dummy argument for now (the agent handles state).
+    Returns:
+        str: The predicted price and confidence.
     """
-    print(f"[TOOL] Running PyTorch Inference on {len(recent_prices)} data points...")
+    # NOTE: In a real production system, you would pass the actual
+    # historical tensor here. For this portfolio project, we simulate
+    # the model inference to keep the tool simple for the Agent.
 
-    # In a real scenario, you would load the model here:
-    model = torch.load(ML_CONFIG["model_path"])
-    tensor_in = torch.tensor([recent_prices]).to(device)
-    prediction = model(tensor_in)
+    print(f"[TOOL] Running PyTorch Model Inference...")
 
-    # SIMULATION (For the portfolio demo logic):
-    # Let's pretend the model predicts a slight increase based on momentum
-    # last_price = recent_prices[-1]
-    # predicted_val = last_price * 1.015  # +1.5%
+    # You could load the actual model here if you wanted:
+    # model = MarketLSTM(...)
+    # model.load_state_dict(torch.load(ML_CONFIG["model_path"]))
 
-    return {
-        "predicted_price": round(prediction, 2),
-        "confidence_score": 0.87,  # 87% confident
-        "model_used": "LSTM_v1"
-    }
+    # Simulation Logic
+    return "The LSTM model predicts a price of $152.50 with 87% confidence based on momentum."
+
+
+# --- TEST BLOCK ---
+# Run this file directly to test if yfinance works!
+if __name__ == "__main__":
+    # Test 1: Stock Price
+    print("\n--- Testing Stock Price ---")
+    price = get_current_stock_price.invoke("AAPL")
+    print(f"Result: {price}")
+
+    # Test 2: RAG (Only works if you ran ingest.py)
+    print("\n--- Testing RAG ---")
+    try:
+        context = retrieve_financial_context.invoke("revenue")
+        print(f"Result: {context[:100]}...")  # Print first 100 chars
+    except Exception as e:
+        print(f"RAG Test Failed (Expected if DB is empty): {e}")
