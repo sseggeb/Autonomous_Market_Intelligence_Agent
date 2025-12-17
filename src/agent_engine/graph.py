@@ -1,7 +1,6 @@
 from typing import TypedDict, Annotated, List, Union
 from langgraph.graph import StateGraph, END
 
-
 # 1. Define the State
 # This acts as the memory that gets passed between nodes
 class AgentState(TypedDict):
@@ -12,47 +11,45 @@ class AgentState(TypedDict):
     forecast_confidence: float
     final_report: str
 
-
 # 2. Define the Nodes (The actual work)
 
 def fetch_market_data(state: AgentState):
     print(f"--- FETCHING DATA FOR {state['ticker']} ---")
     # Logic to pull API data (e.g., yfinance)
-    # state['price_history'] = api_call(...)
+    state['price_history'] = api_call(...)
     return state
 
 
 def run_pytorch_forecast(state: AgentState):
     print("--- RUNNING DEEP LEARNING MODEL ---")
     # Load your PyTorch model from src/ml_engine/
-    # model = load_model("models/price_predictor.pth")
-    # prediction = model(state['price_history'])
+    model = load_model("models/price_predictor.pth")
+    prediction = model(state['price_history'])
 
     # Simulate a result
-    state['forecast_value'] = 150.00
-    state['forecast_confidence'] = 0.85  # 85% confident
+    # state['forecast_value'] = 150.00
+    # state['forecast_confidence'] = 0.85  # 85% confident
     return state
 
 
 def consult_rag_system(state: AgentState):
     print("--- RETRIEVING CONTEXT VIA RAG ---")
     # Logic to query Vector DB (Chroma/Pinecone)
-    # docs = vector_store.similarity_search(state['ticker'])
-    state['news_documents'] = ["SEC Filing: Revenue up 10%...", "News: CEO steps down..."]
+    docs = vector_store.similarity_search(state['ticker'])
+    # state['news_documents'] = ["SEC Filing: Revenue up 10%...", "News: CEO steps down..."]
     return state
 
 
 def generate_report(state: AgentState):
     print("--- GENERATING FINAL REPORT ---")
     # Use LangChain/OpenAI here
-    # prompt = f"The LSTM model predicts {state['forecast_value']}. Context: {state['news_documents']}."
-    # response = llm.invoke(prompt)
+    prompt = f"The LSTM model predicts {state['forecast_value']}. Context: {state['news_documents']}."
+    response = llm.invoke(prompt)
     state['final_report'] = "Based on the LSTM model and recent CEO news, the outlook is..."
     return state
 
 
 # 3. Define the Edges (The Logic/Routing)
-
 def confidence_router(state: AgentState):
     # If the ML model is unsure, force the agent to read the news first
     if state['forecast_confidence'] < 0.90:
