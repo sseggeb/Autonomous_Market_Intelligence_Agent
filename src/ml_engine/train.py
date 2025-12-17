@@ -4,21 +4,8 @@ import torch.optim as optim
 import mlflow
 import mlflow.pytorch
 from torch.utils.data import DataLoader, TensorDataset
+from src.ml_engine.architecture import MarketLSTM
 from src.config import ML_CONFIG, MLFLOW_TRACKING_URI
-
-
-# 1. Define a dummy LSTM Architecture (for demonstration)
-# In a real app, you would import this from src.ml_engine.architecture
-class MarketLSTM(nn.Module):
-    def __init__(self, input_size=1, hidden_size=50, output_size=1):
-        super(MarketLSTM, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
-        self.fc = nn.Linear(hidden_size, output_size)
-
-    def forward(self, x):
-        out, _ = self.lstm(x)
-        out = self.fc(out[:, -1, :])  # Take the last time step
-        return out
 
 
 def train_model():
