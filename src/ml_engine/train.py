@@ -35,8 +35,8 @@ def train_model():
 
     # --- DUMMY DATA GENERATION ---
     # Simulating market data (1000 samples, sequence length 10, 1 feature)
-    X = torch.randn(1000, 10, 1)
-    y = torch.randn(1000, 1)
+    X = torch.randn(1000, 10, 1).float()
+    y = torch.randn(1000, 1).float()
     dataset = TensorDataset(X, y)
     dataloader = DataLoader(dataset, batch_size=ML_CONFIG["batch_size"])
 
@@ -81,7 +81,7 @@ def train_model():
 
         # D. Log the Model Artifact
         # Saves the actual file so you can load it later in LangGraph
-        input_example = torch.randn(1, 10, 1).numpy()
+        input_example = torch.randn(1, 10, 1).float().numpy()
         mlflow.pytorch.log_model(
             model,
             "model",
