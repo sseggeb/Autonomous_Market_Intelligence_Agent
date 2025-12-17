@@ -4,11 +4,22 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
-from src.config import CHROMA_DB_PATH, RAW_DATA_DIR
+from src.config import CHROMA_DB_PATH, RAW_DATA_DIR, EMBEDDING_MODEL_NAME
 
 # --- CONFIGURATION ---
 DATA_PATH = RAW_DATA_DIR / "financial_report.pdf"
 DB_PATH = CHROMA_DB_PATH
+
+"""
+# If using Chroma server instead of local file
+import chromadb
+
+client = chromadb.CloudClient(
+  api_key=CHROMA_API_KEY,
+  tenant='6cba13ad-4ca6-4b73-9b22-b012d0843ad6',
+  database='AMIA'
+)
+"""
 
 
 def ingest_documents():
@@ -44,7 +55,7 @@ def ingest_documents():
     # 4. Initialize Embeddings
     # This turns text into numbers (vectors).
     # Requires OPENAI_API_KEY in your environment variables.
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL_NAME)
 
     # 5. Create and Persist Vector Database
     # We use ChromaDB because it's open-source and file-based (easy for portfolios).

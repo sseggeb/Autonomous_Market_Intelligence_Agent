@@ -11,6 +11,17 @@ from src.config import CHROMA_DB_PATH, EMBEDDING_MODEL_NAME, ML_CONFIG
 DB_PATH = CHROMA_DB_PATH
 EMBEDDING_MODEL = OpenAIEmbeddings(model=EMBEDDING_MODEL_NAME)
 
+"""
+# If using Chroma server instead of local file
+import chromadb
+
+client = chromadb.CloudClient(
+  api_key=CHROMA_API_KEY,
+  tenant='6cba13ad-4ca6-4b73-9b22-b012d0843ad6',
+  database='AMIA'
+)
+"""
+
 # Connect to the existing Vector DB
 vector_db = Chroma(persist_directory=DB_PATH, embedding_function=EMBEDDING_MODEL)
 

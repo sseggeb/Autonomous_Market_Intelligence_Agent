@@ -45,6 +45,11 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("⚠️  OPENAI_API_KEY not found in environment variables!")
 
+CHROMA_API_KEY = os.getenv("CHROMA_API_KEY")
+
+if not CHROMA_API_KEY:
+    print("⚠️  Warning: CHROMA_API_KEY not found. (Ignore this if running locally without auth)")
+
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
 
 # 6. Global Constants
