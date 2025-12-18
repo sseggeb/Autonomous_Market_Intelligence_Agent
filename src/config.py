@@ -33,10 +33,11 @@ ML_CONFIG = {
     "hidden_size": 64,      # LSTM hidden neurons
     "output_size": 1,       # Prediction horizon
     "num_layers": 2,        # Stacked LSTM layers
+    "dropout": 0.2,
     "learning_rate": 0.001,
     "batch_size": 32,
-    "epochs": 1,
-    "window_size": 10,      # Lookback period (how many days to look behind)
+    "epochs": 10,
+    "window_size": 60,      # Lookback period (how many days to look behind)
     "model_path": MODEL_DIR / "price_predictor.pth"
 }
 

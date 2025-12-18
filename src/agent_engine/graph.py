@@ -31,7 +31,7 @@ def fetch_market_data(state: AgentState):
         stock = yf.Ticker(ticker)
         # We need slightly more than 'window_size' to be safe, e.g., 1mo
         # The ML model expects a sequence (defined in config, usually 10 days)
-        hist = stock.history(period="1mo")
+        hist = stock.history(period="6mo")
 
         if hist.empty:
             print(f"⚠️ Warning: No data found for {ticker}")

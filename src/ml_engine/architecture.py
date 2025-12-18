@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class MarketLSTM(nn.Module):
-    def __init__(self, input_size=1, hidden_size=64, output_size=1, num_layers=1):
+    def __init__(self, input_size=1, hidden_size=64, output_size=1, num_layers=1, dropout=0.2):
         super(MarketLSTM, self).__init__()
 
         # LSTM Layer
@@ -11,7 +11,8 @@ class MarketLSTM(nn.Module):
             input_size=input_size,
             hidden_size=hidden_size,
             num_layers=num_layers,
-            batch_first=True
+            batch_first=True,
+            dropout= dropout if num_layers > 1 else 0.0,
         )
 
         # Fully Connected Layer (Output)

@@ -3,7 +3,6 @@ import sys
 from dotenv import load_dotenv
 
 # Import the compiled LangGraph app we built in src/agent_engine/graph.py
-# Note: Ensure your directory structure is set so python can find 'src'
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.agent_engine.graph import app
 

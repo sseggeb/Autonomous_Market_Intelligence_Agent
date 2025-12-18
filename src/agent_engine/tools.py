@@ -1,13 +1,15 @@
 import yfinance as yf
 import torch
 import ast
+import joblib
+import numpy as np
 from langchain.tools import tool
 from langchain_chroma import Chroma
 
 # Import settings from your centralized config
 # This ensures we use the correct Embedding Model (OpenAI vs Local) and DB Path
 from src.ml_engine.architecture import MarketLSTM
-from src.config import CHROMA_DB_PATH, EMBEDDING_MODEL, ML_CONFIG
+from src.config import CHROMA_DB_PATH, EMBEDDING_MODEL, ML_CONFIG, MODEL_DIR, RAW_DATA_DIR
 
 # Initialize the Vector DB connection once (Global)
 print(f"[INIT] Loading Vector DB from {CHROMA_DB_PATH}...")
@@ -19,7 +21,10 @@ vector_db = Chroma(
 # We load the model when the app starts, so we don't reload it for every user request
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MODEL_PATH = ML_CONFIG["model_path"]
+SCALER_PATH = RAW_DATA_DIR / "scaler.pkl"
 
+# Load Model
+model = None
 print(f"[INIT] Loading LSTM Model from {MODEL_PATH}...")
 try:
     # 1. Initialize the Architecture (Must match training!)
@@ -27,7 +32,8 @@ try:
         input_size=ML_CONFIG["input_size"],
         hidden_size=ML_CONFIG["hidden_size"],
         output_size=ML_CONFIG["output_size"],
-        num_layers=ML_CONFIG["num_layers"]
+        num_layers=ML_CONFIG["num_layers"],
+        dropout=ML_CONFIG["dropout"]
     )
     # 2. Load the Weights
     model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE, weights_only=True))
@@ -36,8 +42,15 @@ try:
     print("[INIT] Model loaded successfully.")
 except Exception as e:
     print(f"⚠️ Warning: Could not load model ({e}). Inference tool will fail.")
-    model = None
 
+# Load scaler
+scaler = None
+try:
+    print(f"[INIT] Loading Scaler from {SCALER_PATH}...")
+    scaler = joblib.load(SCALER_PATH)
+    print("[INIT] Scaler loaded successfully.")
+except Exception as e:
+    print(f"⚠️ Warning: Could not load scaler ({e}). Predictions will be wildly wrong (unscaled).")
 
 @tool
 def get_current_stock_price(ticker: str) -> str:
@@ -85,51 +98,57 @@ def retrieve_financial_context(query: str) -> str:
 def predict_future_price(recent_prices_str: str) -> str:
     """
     Uses the PyTorch LSTM model to forecast the price.
-    Input: A string representation of a list of floats (e.g., "[150.1, 152.3, ...]")
-    Returns: A string prediction.
+    Args:
+        recent_prices_str (str): A string list of recent prices (e.g., "[150.1, 152.3]").
     """
     if model is None:
         return "Error: Prediction model is not loaded."
+    if scaler is None:
+        return "Error: Data Scaler is not loaded (cannot normalize inputs)."
 
-    print(f"[TOOL] Receiving data for inference...")
+    print(f"[TOOL] Running PyTorch Inference...")
 
     try:
-        # 1. Parse Input (String -> List)
-        # The graph passes data as a string, so we safely evaluate it back to a list
+        # A. Parse Input (String -> List)
         recent_prices = ast.literal_eval(recent_prices_str)
 
-        if len(recent_prices) < 5:
-            return "Error: Not enough data points to make a prediction."
+        # Validation: We need at least 'window_size' data points
+        # If we have too few, the model will crash or give garbage.
+        required_window = ML_CONFIG.get("window_size", 10)
+        if len(recent_prices) < required_window:
+            return f"Error: Model requires {required_window} days of data, but got {len(recent_prices)}."
 
-        # 2. Preprocessing (Normalization)
-        # NOTE: In a real app, use the scaler saved during training (e.g., joblib.load('scaler.pkl'))
-        # Here we do a simple normalization for the demo
-        last_price = recent_prices[-1]
+        # Keep only the most recent 'window_size' items
+        recent_prices = recent_prices[-required_window:]
 
-        # Convert to Tensor: Shape (1, Sequence_Length, 1)
-        # 1 = Batch size, 1 = Input features (Close price)
-        input_tensor = torch.tensor(recent_prices).float().view(1, -1, 1).to(DEVICE)
+        # B. PREPROCESS (Apply the Scaler)
+        # 1. Convert to numpy array (Shape: [N, 1])
+        input_array = np.array(recent_prices).reshape(-1, 1)
 
-        # 3. Inference
+        # 2. Scale values to 0-1 range (using the logic from training)
+        scaled_inputs = scaler.transform(input_array)
+
+        # 3. Convert to Tensor (Batch=1, Seq=Window, Feature=1)
+        input_tensor = torch.tensor(scaled_inputs).float().view(1, -1, 1).to(DEVICE)
+
+        # C. INFERENCE
         with torch.no_grad():
             prediction_tensor = model(input_tensor)
-            predicted_value = prediction_tensor.item()
+            # Output is a single scaled float (e.g., 0.65)
+            scaled_prediction = prediction_tensor.cpu().numpy()
 
-        # 4. Post-processing (Explainable AI)
-        # If the model outputs a normalized value, we would denormalize it here.
-        # For this demo, let's assume the model learned the raw mapping or slightly shifts it.
+        # D. POST-PROCESS (Inverse Transform)
+        # We must reshape to (1, 1) for the scaler to accept it
+        real_prediction = scaler.inverse_transform(scaled_prediction.reshape(-1, 1))
+        predicted_price = real_prediction[0][0]
 
-        # Sanity Check: If the model is untrained (random weights), the output will be garbage.
-        # We'll blend it with the last price for a realistic demo effect if the loss was high.
-        final_prediction = predicted_value
-
-        # Calculate percent change
-        change = ((final_prediction - last_price) / last_price) * 100
+        # Calculate context for the user
+        last_price = recent_prices[-1]
+        change = ((predicted_price - last_price) / last_price) * 100
         direction = "UP" if change > 0 else "DOWN"
 
         return (f"The LSTM model predicts the price will move {direction} to "
-                f"${final_prediction:.2f} ({change:+.2f}%). "
-                f"Confidence based on volatility is High.")
+                f"${predicted_price:.2f} ({change:+.2f}%).")
 
     except Exception as e:
         return f"Error running inference: {str(e)}"

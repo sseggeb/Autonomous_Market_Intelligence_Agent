@@ -1,0 +1,38 @@
+artifact_path: file:C:/Users/spencer/OneDrive - R T Jones Capital Equities Inc/Documents/GitHub/Autonomous_Market_Intelligence_Agent/src/ml_engine/mlruns/1/models/m-5cddef68cb724b8f94325cae53d84bdb/artifacts
+env_vars:
+- CHROMA_API_KEY
+- OPENAI_API_KEY
+flavors:
+  python_function:
+    config:
+      device: null
+    data: data
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pytorch
+    pickle_module_name: mlflow.pytorch.pickle_module
+    python_version: 3.13.9
+  pytorch:
+    code: null
+    model_data: data
+    pytorch_version: 2.7.1+cpu
+is_signature_from_type_hint: false
+mlflow_version: 3.7.0
+model_id: m-5cddef68cb724b8f94325cae53d84bdb
+model_size_bytes: 211036
+model_uuid: m-5cddef68cb724b8f94325cae53d84bdb
+prompts: null
+run_id: 9afea8ba96a24edcb1a7cc52829018fa
+saved_input_example_info:
+  artifact_path: input_example.json
+  serving_input_path: serving_input_example.json
+  type: ndarray
+signature:
+  inputs: '[{"type": "tensor", "tensor-spec": {"dtype": "float32", "shape": [-1, 60,
+    1]}}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "float32", "shape": [-1,
+    1]}}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2025-12-18 12:45:34.826092'
