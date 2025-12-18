@@ -26,7 +26,7 @@ def save_graph_image():
     """
     try:
         graph_image = app.get_graph().draw_mermaid_png()
-        with open("agent_workflow.png", "wb") as f:
+        with open(".github/workflows/agent_workflow.png", "wb") as f:
             f.write(graph_image)
         print(" [INFO] Saved agent workflow diagram to 'agent_workflow.png'")
     except Exception as e:

@@ -3,47 +3,59 @@ import torch.nn as nn
 import torch.optim as optim
 import mlflow
 import mlflow.pytorch
+import numpy as np
 from torch.utils.data import DataLoader, TensorDataset
-from src.ml_engine.architecture import MarketLSTM
 from src.config import ML_CONFIG, MLFLOW_TRACKING_URI
+from src.ml_engine.architecture import MarketLSTM
 
 
 def train_model():
-    # --- CONFIGURATION (Hyperparameters) ---
-    hidden_size = ML_CONFIG["hidden_size"]
-    lr = ML_CONFIG["learning_rate"]
-
+    # Setup MLflow
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-
-    # We define these explicitly so MLflow can track them
-    params = {
-        "optimizer": "Adam"
-    }
-
-    # --- DUMMY DATA GENERATION ---
-    # Simulating market data (1000 samples, sequence length 10, 1 feature)
-    X = torch.randn(1000, 10, 1).float()
-    y = torch.randn(1000, 1).float()
-    dataset = TensorDataset(X, y)
-    dataloader = DataLoader(dataset, batch_size=ML_CONFIG["batch_size"])
-
-    # --- MODEL SETUP ---
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = MarketLSTM(hidden_size=hidden_size).to(device)
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-
-    print(f"Starting training on {device}...")
-
-    # --- MLFLOW EXPERIMENT TRACKING ---
-    # This is the "Productivity Multiplier"
     mlflow.set_experiment("Market_Price_Forecaster")
 
-    with mlflow.start_run():
-        # A. Log Hyperparameters (Input configs)
-        mlflow.log_params(params)
+    print(f"--- STARTING TRAINING ---")
+    print(f"Config: {ML_CONFIG}")
 
-        # B. Training Loop
+    # --- 1. DATA GENERATION (Simulated) ---
+    # In a real app, you would load a .csv here using pandas
+    # We create dummy data: 1000 samples, Sequence length=window_size, Features=input_size
+    num_samples = 1000
+    seq_length = ML_CONFIG["window_size"]
+    input_dim = ML_CONFIG["input_size"]
+
+    # FORCE FLOAT32: This prevents the "Double vs Float"
+    X_numpy = np.random.randn(num_samples, seq_length, input_dim).astype(np.float32)
+    y_numpy = np.random.randn(num_samples, 1).astype(np.float32)
+
+    # Convert to PyTorch Tensors
+    X = torch.tensor(X_numpy)
+    y = torch.tensor(y_numpy)
+
+    dataset = TensorDataset(X, y)
+    dataloader = DataLoader(dataset, batch_size=ML_CONFIG["batch_size"], shuffle=True)
+
+    # --- 2. MODEL INITIALIZATION ---
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Initialize the architecture imported from src.ml_engine.architecture
+    model = MarketLSTM(
+        input_size=ML_CONFIG["input_size"],
+        hidden_size=ML_CONFIG["hidden_size"],
+        output_size=ML_CONFIG["output_size"],
+        num_layers=ML_CONFIG["num_layers"]
+    ).to(device)
+
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=ML_CONFIG["learning_rate"])
+
+    print(f"Training on device: {device}")
+
+    # --- 3. TRAINING LOOP WITH MLFLOW ---
+    with mlflow.start_run():
+        # Log params to compare experiments later
+        mlflow.log_params(ML_CONFIG)
+
         model.train()
         for epoch in range(ML_CONFIG["epochs"]):
             epoch_loss = 0.0
@@ -60,21 +72,22 @@ def train_model():
 
             avg_loss = epoch_loss / len(dataloader)
 
-            # C. Log Metrics (Output performance)
-            # This draws the line chart in the MLflow UI
+            # Log metrics to the MLflow dashboard
             mlflow.log_metric("mse_loss", avg_loss, step=epoch)
 
-            print(f"Epoch [{epoch + 1}/{ML_CONFIG['epochs']}], Loss: {avg_loss:.4f}")
+            if (epoch + 1) % 5 == 0:
+                print(f"Epoch [{epoch + 1}/{ML_CONFIG['epochs']}], Loss: {avg_loss:.4f}")
 
-        # D. Log the Model Artifact
-        # Saves the actual file so you can load it later in LangGraph
-        input_example = torch.randn(1, 10, 1).float().numpy()
-        mlflow.pytorch.log_model(
-            model,
-            name="model",
-            input_example=input_example
-        )
-        print("Training complete. Model logged to MLflow.")
+        # --- 4. SAVING ARTIFACTS ---
+        # A. Save for MLflow (Metadata + Dependencies)
+        # Create a sample input so MLflow knows the shape (Signature)
+        input_example = X_numpy[:1]
+        mlflow.pytorch.log_model(model, name="model", input_example=input_example)
+
+        # B. Save for the Agent (The raw .pth file)
+        # We save ONLY the state_dict (weights), not the whole class
+        torch.save(model.state_dict(), ML_CONFIG["model_path"])
+        print(f"✅ Model weights saved locally to: {ML_CONFIG['model_path']}")
 
 
 if __name__ == "__main__":
