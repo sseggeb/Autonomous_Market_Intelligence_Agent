@@ -25,7 +25,9 @@ try:
     # 1. Initialize the Architecture (Must match training!)
     model = MarketLSTM(
         input_size=ML_CONFIG["input_size"],
-        hidden_size=ML_CONFIG["hidden_size"]
+        hidden_size=ML_CONFIG["hidden_size"],
+        output_size=ML_CONFIG["output_size"],
+        num_layers=ML_CONFIG["num_layers"]
     )
     # 2. Load the Weights
     model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE, weights_only=True))

@@ -37,7 +37,7 @@ def main():
     print_banner()
 
     # 1. (Optional) Save the graph visualization
-    save_graph_image()
+    #save_graph_image()
 
     while True:
         # 2. Get User Input

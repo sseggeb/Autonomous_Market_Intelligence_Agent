@@ -3,11 +3,34 @@ import torch.nn as nn
 import torch.optim as optim
 import mlflow
 import mlflow.pytorch
+import pandas as pd
 import numpy as np
 from torch.utils.data import DataLoader, TensorDataset
-from src.config import ML_CONFIG, MLFLOW_TRACKING_URI
+from sklearn.preprocessing import MinMaxScaler
+import joblib
+
+from src.config import ML_CONFIG, MLFLOW_TRACKING_URI, RAW_DATA_DIR, PROCESSED_DATA_DIR
 from src.ml_engine.architecture import MarketLSTM
 
+
+# Helper function: sliding window
+def create_sequence(data, seq_length):
+    """
+    Turns a list of prices into:
+    X: [[10,11],[11,12],[12,13],[13,14],[14,15],[15,16]]
+    y: [15,16,17]
+    (assuming seq_length=2)
+    :param data:
+    :param seq_length:
+    :return:
+    """
+    xs, ys = [],[]
+    for i in range(len(data) - seq_length):
+        x = data[i : i+seq_length]
+        y = data[i + seq_length]
+        xs.append(x)
+        ys.append(y)
+    return np.array(xs), np.array(ys)
 
 def train_model():
     # Setup MLflow
@@ -15,27 +38,45 @@ def train_model():
     mlflow.set_experiment("Market_Price_Forecaster")
 
     print(f"--- STARTING TRAINING ---")
-    print(f"Config: {ML_CONFIG}")
+    # lOAD .csv
+    csv_path = RAW_DATA_DIR / "stock_data.csv"
 
-    # --- 1. DATA GENERATION (Simulated) ---
-    # In a real app, you would load a .csv here using pandas
-    # We create dummy data: 1000 samples, Sequence length=window_size, Features=input_size
-    num_samples = 1000
+    if not csv_path.exists():
+        print(f"Error: csv file not found at {csv_path}")
+        print(" Please create a csv with a 'Close' column.")
+        return
+
+    print(f"Loading data from {csv_path}...")
+    df = pd.read_csv(csv_path)
+
+    # Preprocessing
+    # filter Close column
+    data = df.filter(['Close']).values
+
+    # Scale data to (o,1) for the LSTM
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_data = scaler.fit_transform(data)
+
+    # Save the scaler for use in tools.py
+    scaler_path = RAW_DATA_DIR / "scaler.pkl"
+    joblib.dump(scaler, scaler_path)
+    print(f"Scaler saved to {scaler_path}")
+
+    # Create sequences
     seq_length = ML_CONFIG["window_size"]
-    input_dim = ML_CONFIG["input_size"]
+    X_numpy, y_numpy = create_sequence(scaled_data, seq_length)
 
-    # FORCE FLOAT32: This prevents the "Double vs Float"
-    X_numpy = np.random.randn(num_samples, seq_length, input_dim).astype(np.float32)
-    y_numpy = np.random.randn(num_samples, 1).astype(np.float32)
+    # Convert to Float32 for pytorch
+    X = torch.tensor(X_numpy).float()
+    y = torch.tensor(y_numpy).float()
 
-    # Convert to PyTorch Tensors
-    X = torch.tensor(X_numpy)
-    y = torch.tensor(y_numpy)
+    print(f"training data shape: {X.shape}")
+    # expected: (Samples, window_size, 1)
 
     dataset = TensorDataset(X, y)
     dataloader = DataLoader(dataset, batch_size=ML_CONFIG["batch_size"], shuffle=True)
 
-    # --- 2. MODEL INITIALIZATION ---
+    # 2. Model Setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Initialize the architecture imported from src.ml_engine.architecture
@@ -81,7 +122,7 @@ def train_model():
         # --- 4. SAVING ARTIFACTS ---
         # A. Save for MLflow (Metadata + Dependencies)
         # Create a sample input so MLflow knows the shape (Signature)
-        input_example = X_numpy[:1]
+        input_example = X_numpy[:1].astype(np.float32)
         mlflow.pytorch.log_model(model, name="model", input_example=input_example)
 
         # B. Save for the Agent (The raw .pth file)
