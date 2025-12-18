@@ -1,3 +1,7 @@
+joblib
+scikit-learn
+langchain-huggingface
+langchain-core
 torch~=2.7.1
 numpy
 pandas
