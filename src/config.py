@@ -29,14 +29,14 @@ CHUNK_OVERLAP = 200
 # 4. Machine Learning Hyperparameters
 # Centralizing these makes it easy to run experiments
 ML_CONFIG = {
-    "input_size": 1,        # Number of features (e.g., Close price)
+    "input_size": 4,        # Number of features (e.g., Close, Volume, SMA, RSI)
     "hidden_size": 64,      # LSTM hidden neurons
-    "output_size": 1,       # Prediction horizon
+    "output_size": 1,       # Prediction horizon (Price)
     "num_layers": 2,        # Stacked LSTM layers
     "dropout": 0.2,
     "learning_rate": 0.001,
     "batch_size": 32,
-    "epochs": 10,
+    "epochs": 25,
     "window_size": 60,      # Lookback period (how many days to look behind)
     "model_path": MODEL_DIR / "price_predictor.pth"
 }

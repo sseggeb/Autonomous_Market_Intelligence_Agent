@@ -20,32 +20,49 @@ class AgentState(TypedDict):
 # --- 2. DEFINE NODES ---
 
 def fetch_market_data(state: AgentState):
-    """
-    Node 1: Perception.
-    Fetches the last N days of stock data to feed the ML model.
-    """
     ticker = state["ticker"]
-    print(f"--- [GRAPH] FETCHING HISTORY FOR {ticker} ---")
+    print(f"--- [GRAPH] FETCHING & PROCESSING DATA FOR {ticker} ---")
 
     try:
         stock = yf.Ticker(ticker)
-        # We need slightly more than 'window_size' to be safe, e.g., 1mo
-        # The ML model expects a sequence (defined in config, usually 10 days)
-        hist = stock.history(period="6mo")
+        # Fetch 1 year to be safe for 50-day SMA + 60-day window
+        hist = stock.history(period="1y")
 
         if hist.empty:
-            print(f"⚠️ Warning: No data found for {ticker}")
             return {"price_history": []}
 
-        # Get the last 'window_size' closing prices (e.g., last 10)
-        # We assume ML_CONFIG['window_size'] is 10
-        window = ML_CONFIG.get("window_size", 10)
-        recent_closes = hist["Close"].tail(window).tolist()
+        # --- LIVE FEATURE ENGINEERING ---
+        # 1. Calculate SMA 50
+        hist['SMA_50'] = hist['Close'].rolling(window=50).mean()
 
-        return {"price_history": recent_closes}
+        # 2. Calculate RSI 14
+        delta = hist['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        hist['RSI'] = 100 - (100 / (1 + rs))
+
+        # 3. Drop NaNs
+        hist.dropna(inplace=True)
+
+        # 4. Check length
+        window = ML_CONFIG.get("window_size", 60)
+        if len(hist) < window:
+            print("Not enough data after calculating indicators.")
+            return {"price_history": []}
+
+        # 5. Extract the 4 columns
+        # a list of lists: [[Close, Vol, SMA, RSI], [Close, Vol, ...], ...]
+        final_data = hist[['Close', 'Volume', 'SMA_50', 'RSI']].tail(window)
+
+        # Convert to a format we can pass to the tool
+        # .values.tolist() creates [[...], [...]]
+        history_list = final_data.values.tolist()
+
+        return {"price_history": history_list}
 
     except Exception as e:
-        print(f"Error fetching market data: {e}")
+        print(f"Error: {e}")
         return {"price_history": []}
 
 

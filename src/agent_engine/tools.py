@@ -9,7 +9,7 @@ from langchain_chroma import Chroma
 # Import settings from your centralized config
 # This ensures we use the correct Embedding Model (OpenAI vs Local) and DB Path
 from src.ml_engine.architecture import MarketLSTM
-from src.config import CHROMA_DB_PATH, EMBEDDING_MODEL, ML_CONFIG, MODEL_DIR, RAW_DATA_DIR
+from src.config import CHROMA_DB_PATH, EMBEDDING_MODEL, ML_CONFIG, MODEL_DIR, PROCESSED_DATA_DIR
 
 # Initialize the Vector DB connection once (Global)
 print(f"[INIT] Loading Vector DB from {CHROMA_DB_PATH}...")
@@ -21,7 +21,7 @@ vector_db = Chroma(
 # We load the model when the app starts, so we don't reload it for every user request
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MODEL_PATH = ML_CONFIG["model_path"]
-SCALER_PATH = RAW_DATA_DIR / "scaler.pkl"
+
 
 # Load Model
 model = None
@@ -43,14 +43,16 @@ try:
 except Exception as e:
     print(f"⚠️ Warning: Could not load model ({e}). Inference tool will fail.")
 
-# Load scaler
-scaler = None
+# Load scalers
+feature_scaler = None
+target_scaler = None
 try:
-    print(f"[INIT] Loading Scaler from {SCALER_PATH}...")
-    scaler = joblib.load(SCALER_PATH)
-    print("[INIT] Scaler loaded successfully.")
+    print(f"[INIT] Loading Scalers from {PROCESSED_DATA_DIR}...")
+    feature_scaler = joblib.load(PROCESSED_DATA_DIR / "feature_scaler.pkl")
+    target_scaler = joblib.load(PROCESSED_DATA_DIR / "target_scaler.pkl")
+    print("[INIT] Scalers loaded successfully.")
 except Exception as e:
-    print(f"⚠️ Warning: Could not load scaler ({e}). Predictions will be wildly wrong (unscaled).")
+    print(f"⚠️ Warning: Could not load scaler(s) ({e}). Predictions will be wildly wrong (unscaled).")
 
 @tool
 def get_current_stock_price(ticker: str) -> str:
@@ -95,63 +97,47 @@ def retrieve_financial_context(query: str) -> str:
 
 
 @tool
-def predict_future_price(recent_prices_str: str) -> str:
+def predict_future_price(recent_data_str: str) -> str:
     """
-    Uses the PyTorch LSTM model to forecast the price.
     Args:
-        recent_prices_str (str): A string list of recent prices (e.g., "[150.1, 152.3]").
+        recent_data_str: String of list of lists e.g. "[[150, 10000, 145, 60], ...]"
     """
-    if model is None:
-        return "Error: Prediction model is not loaded."
-    if scaler is None:
-        return "Error: Data Scaler is not loaded (cannot normalize inputs)."
-
-    print(f"[TOOL] Running PyTorch Inference...")
+    # ... checks ...
 
     try:
-        # A. Parse Input (String -> List)
-        recent_prices = ast.literal_eval(recent_prices_str)
+        # 1. Parse Data
+        recent_data = ast.literal_eval(recent_data_str)
 
-        # Validation: We need at least 'window_size' data points
-        # If we have too few, the model will crash or give garbage.
-        required_window = ML_CONFIG.get("window_size", 10)
-        if len(recent_prices) < required_window:
-            return f"Error: Model requires {required_window} days of data, but got {len(recent_prices)}."
+        # 2. Preprocess
+        # Shape: (60, 4)
+        input_array = np.array(recent_data)
 
-        # Keep only the most recent 'window_size' items
-        recent_prices = recent_prices[-required_window:]
+        # Scale inputs using feature_scaler
+        scaled_inputs = feature_scaler.transform(input_array)
 
-        # B. PREPROCESS (Apply the Scaler)
-        # 1. Convert to numpy array (Shape: [N, 1])
-        input_array = np.array(recent_prices).reshape(-1, 1)
+        # To Tensor: (1, 60, 4)
+        input_tensor = torch.tensor(scaled_inputs).float().view(1, -1, 4).to(DEVICE)
 
-        # 2. Scale values to 0-1 range (using the logic from training)
-        scaled_inputs = scaler.transform(input_array)
-
-        # 3. Convert to Tensor (Batch=1, Seq=Window, Feature=1)
-        input_tensor = torch.tensor(scaled_inputs).float().view(1, -1, 1).to(DEVICE)
-
-        # C. INFERENCE
+        # 3. Inference
         with torch.no_grad():
-            prediction_tensor = model(input_tensor)
-            # Output is a single scaled float (e.g., 0.65)
-            scaled_prediction = prediction_tensor.cpu().numpy()
+            prediction = model(input_tensor)
+            scaled_pred_val = prediction.cpu().numpy()  # Shape (1, 1)
 
-        # D. POST-PROCESS (Inverse Transform)
-        # We must reshape to (1, 1) for the scaler to accept it
-        real_prediction = scaler.inverse_transform(scaled_prediction.reshape(-1, 1))
-        predicted_price = real_prediction[0][0]
+        # 4. Inverse Transform (Target only!)
+        # Use target_scaler, which expects shape (N, 1)
+        real_price = target_scaler.inverse_transform(scaled_pred_val)
+        final_price = real_price[0][0]
 
-        # Calculate context for the user
-        last_price = recent_prices[-1]
-        change = ((predicted_price - last_price) / last_price) * 100
+        # Calculate change based on the LAST CLOSE price (Column 0 of the last row)
+        last_close = recent_data[-1][0]
+        change = ((final_price - last_close) / last_close) * 100
         direction = "UP" if change > 0 else "DOWN"
 
-        return (f"The LSTM model predicts the price will move {direction} to "
-                f"${predicted_price:.2f} ({change:+.2f}%).")
+        return (f"Based on Price, Volume, SMA, and RSI, the model predicts "
+                f"{direction} to ${final_price:.2f} ({change:+.2f}%).")
 
     except Exception as e:
-        return f"Error running inference: {str(e)}"
+        return f"Error: {str(e)}"
 
 
 # --- TEST BLOCK ---

@@ -1,6 +1,7 @@
 import os
 import sys
 from dotenv import load_dotenv
+from langchain_core.runnables.graph import MermaidDrawMethod
 
 # Import the compiled LangGraph app we built in src/agent_engine/graph.py
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -24,8 +25,8 @@ def save_graph_image():
     Optional: Visualizes the agent's logic flow as a PNG image.
     """
     try:
-        graph_image = app.get_graph().draw_mermaid_png()
-        with open(".github/workflows/agent_workflow.png", "wb") as f:
+        graph_image = app.get_graph().draw_mermaid_png(max_retries=5, retry_delay=2.0, draw_method=MermaidDrawMethod.PYPPETEER)
+        with open("agent_workflow.png", "wb") as f:
             f.write(graph_image)
         print(" [INFO] Saved agent workflow diagram to 'agent_workflow.png'")
     except Exception as e:
