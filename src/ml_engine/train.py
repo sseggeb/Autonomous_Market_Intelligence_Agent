@@ -21,12 +21,11 @@ def create_sequences(data, target, seq_length):
     """
     xs, ys = [],[]
     for i in range(len(data) - seq_length):
-        x = data[i : i+seq_length]
+        x = data[i : i + seq_length]
         y = target[i + seq_length]
         xs.append(x)
         ys.append(y)
     return np.array(xs), np.array(ys)
-
 
 def train_model():
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
@@ -102,7 +101,6 @@ def train_model():
         mlflow.pytorch.log_model(model, name="model", input_example=input_example)
         torch.save(model.state_dict(), ML_CONFIG["model_path"])
         print(f"✅ Model saved to {ML_CONFIG['model_path']}")
-
 
 if __name__ == "__main__":
     train_model()

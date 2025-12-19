@@ -10,7 +10,6 @@ from src.agent_engine.graph import app
 # --- CONFIGURATION ---
 load_dotenv()  # Loads OPENAI_API_KEY from .env file
 
-
 def print_banner():
     print("""
     =================================================
@@ -18,7 +17,6 @@ def print_banner():
     =================================================
     Powered by: LangGraph, PyTorch, ChromaDB, OpenAI
     """)
-
 
 def save_graph_image():
     """
@@ -31,7 +29,6 @@ def save_graph_image():
         print(" [INFO] Saved agent workflow diagram to 'agent_workflow.png'")
     except Exception as e:
         print(f" [WARN] Could not save graph image (requires graphviz): {e}")
-
 
 def main():
     print_banner()

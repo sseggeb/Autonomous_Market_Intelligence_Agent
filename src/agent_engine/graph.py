@@ -8,7 +8,7 @@ from src.agent_engine.tools import retrieve_financial_context, predict_future_pr
 from src.config import ML_CONFIG
 
 
-# --- 1. DEFINE STATE ---
+# DEFINE STATE
 class AgentState(TypedDict):
     ticker: str
     price_history: List[float]  # The last N days of closing prices
@@ -16,8 +16,7 @@ class AgentState(TypedDict):
     forecast_report: str  # The ML prediction text
     final_report: str  # The final output to the user
 
-
-# --- 2. DEFINE NODES ---
+# DEFINE NODES
 
 def fetch_market_data(state: AgentState):
     ticker = state["ticker"]
@@ -65,7 +64,6 @@ def fetch_market_data(state: AgentState):
         print(f"Error: {e}")
         return {"price_history": []}
 
-
 def run_prediction_node(state: AgentState):
     """
     Node 2: Prediction.
@@ -84,7 +82,6 @@ def run_prediction_node(state: AgentState):
 
     return {"forecast_report": result_text}
 
-
 def research_news_node(state: AgentState):
     """
     Node 3: Contextualization.
@@ -98,7 +95,6 @@ def research_news_node(state: AgentState):
     context = retrieve_financial_context.invoke(ticker)
 
     return {"news_documents": context}
-
 
 def generate_report_node(state: AgentState):
     """
@@ -124,8 +120,7 @@ def generate_report_node(state: AgentState):
     """
     return {"final_report": report}
 
-
-# --- 3. BUILD GRAPH ---
+# 3. BUILD GRAPH
 
 workflow = StateGraph(AgentState)
 

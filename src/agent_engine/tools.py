@@ -22,7 +22,6 @@ vector_db = Chroma(
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MODEL_PATH = ML_CONFIG["model_path"]
 
-
 # Load Model
 model = None
 print(f"[INIT] Loading LSTM Model from {MODEL_PATH}...")
@@ -76,7 +75,6 @@ def get_current_stock_price(ticker: str) -> str:
     except Exception as e:
         return f"Error fetching price for {ticker}: {str(e)}"
 
-
 @tool
 def retrieve_financial_context(query: str) -> str:
     """
@@ -94,7 +92,6 @@ def retrieve_financial_context(query: str) -> str:
     # Combine the chunks into a single text block
     context_text = "\n---\n".join([doc.page_content for doc in results])
     return context_text
-
 
 @tool
 def predict_future_price(recent_data_str: str) -> str:
@@ -139,9 +136,7 @@ def predict_future_price(recent_data_str: str) -> str:
     except Exception as e:
         return f"Error: {str(e)}"
 
-
 # --- TEST BLOCK ---
-# Run this file directly to test if yfinance works!
 if __name__ == "__main__":
     # Test 1: Stock Price
     print("\n--- Testing Stock Price ---")
